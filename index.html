@@ -26,7 +26,6 @@
       align-items: center;
     }
 
-    /* MediaWiki Header Styling */
     header {
       width: 100%;
       background-color: var(--header-bg);
@@ -85,7 +84,6 @@
       margin-top: 0;
     }
 
-    /* Wikipedia-style Search Result Layout with Thumbnails */
     .result-item {
       display: flex;
       gap: 15px;
@@ -126,6 +124,15 @@
       color: #54595d;
       font-size: 0.95em;
     }
+
+    .error-notice {
+      background-color: #fee7e6;
+      border: 1px solid #b72828;
+      color: #b72828;
+      padding: 12px;
+      margin-bottom: 1rem;
+      font-size: 0.9em;
+    }
   </style>
 </head>
 <body>
@@ -150,11 +157,12 @@
       <input type="text" id="searchInput" placeholder="Search articles..." oninput="handleSearch(this.value)">
     </div>
 
+    <div id="errorContainer"></div>
     <div id="searchResults"></div>
   </div>
 
   <script>
-    /* 1. Language Translation Engine */
+    /* 1. Language Translation Engines */
     const RIVERLUNDI_CLUSTERS = [
       "tion", "sion", "ight", "ough", "eigh", "tch", "dge", "str", "spr", "spl",
       "sch", "thr", "shr", "ing", "est", "ph", "gh", "th", "sh", "ch", "wh", "ck",
@@ -222,7 +230,7 @@
       return processWord(text, fn);
     }
 
-    /* 2. Application Logic & Data Loader */
+    /* 2. Application Logic */
     let currentLang = 'en';
     let articlesData = [];
 
@@ -232,11 +240,22 @@
     });
 
     async function loadArticles() {
+      const errorDiv = document.getElementById('errorContainer');
+      errorDiv.innerHTML = '';
+
+      if (window.location.protocol === 'file:') {
+        errorDiv.innerHTML = `<div class="error-notice"><strong>Browser Security Block:</strong> Browsers block loading <code>articles.json</code> directly when opening HTML files via <code>file://</code>. Please test using a local server (like VS Code Live Server) or deploy to GitHub Pages.</div>`;
+        return;
+      }
+
       try {
         const response = await fetch('articles.json');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+        }
         articlesData = await response.json();
       } catch (err) {
-        console.warn("articles.json file not found or invalid format.", err);
+        errorDiv.innerHTML = `<div class="error-notice"><strong>Error loading articles.json:</strong> ${err.message}. Make sure <code>articles.json</code> exists in the same folder as <code>index.html</code> and has valid JSON syntax.</div>`;
         articlesData = [];
       }
     }
@@ -247,13 +266,11 @@
     }
 
     function renderPage() {
-      // Translate Interface Text
       document.getElementById('brandTitle').innerText = translateText("Siennic Wiki", currentLang);
       document.getElementById('pageTitle').innerText = translateText("Siennic Wiki", currentLang);
       document.getElementById('langLabel').innerText = translateText("Language:", currentLang);
       document.getElementById('searchInput').placeholder = translateText("Search articles...", currentLang);
 
-      // Re-render Search Results
       const query = document.getElementById('searchInput').value;
       handleSearch(query);
     }
@@ -263,16 +280,27 @@
       resultsContainer.innerHTML = '';
       const cleanFilter = filter.toLowerCase().trim();
 
+      if (!Array.isArray(articlesData) || articlesData.length === 0) {
+        return;
+      }
+
+      let matchCount = 0;
+
       articlesData.forEach(article => {
         const rawTitle = article.title || "";
         const rawDesc = article.description || article.heading || "";
+        const articleSlug = article.slug || article.file || article.url || "";
         
-        // Target subfolders: /articles/ for HTML files, /thumbs/ for thumbnails
-        const articleSlug = article.slug || article.file || "";
-        const articleUrl = `./articles/${articleSlug}`;
-        const thumbUrl = article.thumb ? `./thumbs/${article.thumb}` : null;
+        // Build path: check if user already wrote 'articles/' or just the filename
+        const articleUrl = articleSlug.startsWith('articles/') ? `./${articleSlug}` : `./articles/${articleSlug}`;
+        
+        let thumbUrl = null;
+        if (article.thumb) {
+          thumbUrl = article.thumb.startsWith('thumbs/') ? `./${article.thumb}` : `./thumbs/${article.thumb}`;
+        }
 
         if (rawTitle.toLowerCase().includes(cleanFilter) || rawDesc.toLowerCase().includes(cleanFilter)) {
+          matchCount++;
           const translatedTitle = translateText(rawTitle, currentLang);
           const translatedDesc = translateText(rawDesc, currentLang);
 
@@ -294,6 +322,10 @@
           resultsContainer.appendChild(div);
         }
       });
+
+      if (matchCount === 0 && cleanFilter !== '') {
+        resultsContainer.innerHTML = `<p style="color: #54595d;">${translateText("No articles found matching your search.", currentLang)}</p>`;
+      }
     }
   </script>
 </body>
