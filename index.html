@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Siennic Wiki</title>
+  <style>
+    :root {
+      --font-family: 'Times New Roman', Times, serif;
+      --text-color: #202122;
+      --bg-color: #ffffff;
+      --link-color: #0645ad;
+      --border-color: #a2a9b1;
+      --header-bg: #f8f9fa;
+    }
+
+    body {
+      font-family: var(--font-family);
+      line-height: 1.6;
+      color: var(--text-color);
+      background-color: var(--bg-color);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* MediaWiki Header Styling */
+    header {
+      width: 100%;
+      background-color: var(--header-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 20px;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      font-size: 1.4em;
+      font-weight: bold;
+      text-decoration: none;
+      color: #000;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select, input[type="text"] {
+      font-family: inherit;
+      padding: 5px 8px;
+      border: 1px solid var(--border-color);
+      background: #fff;
+    }
+
+    .container {
+      max-width: 900px;
+      width: 100%;
+      padding: 2rem;
+      box-sizing: border-box;
+    }
+
+    .search-box {
+      margin: 2rem 0;
+      display: flex;
+      gap: 5px;
+    }
+
+    .search-box input {
+      flex: 1;
+      font-size: 1.1em;
+      padding: 8px 12px;
+    }
+
+    h1 {
+      font-size: 2em;
+      font-weight: normal;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.25em;
+      margin-top: 0;
+    }
+
+    .result-item {
+      margin-bottom: 1.5rem;
+      border-bottom: 1px dashed var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    .result-item h3 {
+      margin: 0 0 5px 0;
+    }
+
+    .result-item a {
+      color: var(--link-color);
+      text-decoration: none;
+      font-size: 1.2em;
+    }
+
+    .result-item a:hover {
+      text-decoration: underline;
+    }
+
+    .result-desc {
+      color: #54595d;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="./" class="brand" id="brandTitle">Siennic Wiki</a>
+    <div class="controls">
+      <label for="langSelect" id="langLabel">Language:</label>
+      <select id="langSelect" onchange="changeLanguage(this.value)">
+        <option value="en" selected>English</option>
+        <option value="siennic">Siennic</option>
+        <option value="riverlundi">Riverlundi</option>
+        <option value="peschaten">Peschaten</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="container">
+    <h1 id="pageTitle" style="text-align: center; border: none; margin-top: 1rem;">Siennic Wiki</h1>
+    
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Search articles..." oninput="handleSearch(this.value)">
+    </div>
+
+    <div id="searchResults"></div>
+  </div>
+
+  <script>
+    /* 1. Language Translation Engines */
+    const RIVERLUNDI_CLUSTERS = [
+      "tion", "sion", "ight", "ough", "eigh", "tch", "dge", "str", "spr", "spl",
+      "sch", "thr", "shr", "ing", "est", "ph", "gh", "th", "sh", "ch", "wh", "ck",
+      "kn", "wr", "ng", "qu", "st", "sp", "sc", "sk", "sm", "sn", "sw", "tr", "dr",
+      "pr", "br", "cr", "gr", "fr", "pl", "bl", "cl", "gl", "fl", "sl", "nd", "nt",
+      "mp", "lt", "ld", "ee", "ea", "oo", "ou", "ow", "ai", "ay", "oa", "oe", "ie",
+      "ei", "ue", "ew", "ui", "au", "aw", "oi", "oy", "er", "ir", "ur", "ar", "or",
+      "al", "el"
+    ];[cite: 1, 3]
+
+    function matchCaps(original, transformed) {
+      const isFirstCap = /^[A-Z]/.test(original);
+      const isAllCap = original.length > 1 && original === original.toUpperCase();
+      let lower = transformed.toLowerCase();
+      if (isAllCap) return lower.toUpperCase();
+      if (isFirstCap) return lower.charAt(0).toUpperCase() + lower.slice(1);
+      return lower;
+    }[cite: 1]
+
+    function processWord(word, transformFn) {
+      return word.replace(/[a-zA-Z]+/g, function(w) {
+        return matchCaps(w, transformFn(w));
+      });
+    }[cite: 1]
+
+    function transformSiennic(word) {
+      return word.split('').reverse().join('');
+    }[cite: 1]
+
+    function transformRiverlundi(word) {
+      let lower = word.toLowerCase();
+      let tokens = [];
+      let i = 0;
+      while (i < lower.length) {
+        let matched = false;
+        for (let c of RIVERLUNDI_CLUSTERS) {
+          if (lower.startsWith(c, i)) {
+            tokens.push(c);
+            i += c.length;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) { tokens.push(lower[i]); i++; }
+      }
+      return tokens.reverse().join('');
+    }[cite: 1]
+
+    function transformPeschaten(word) {
+      if (word.length === 1) return "sht";[cite: 1, 2]
+      const reversed = word.split('').reverse().join('');
+      const removedChar = reversed.slice(-1).toLowerCase();
+      const base = reversed.slice(0, -1);
+      let suffix = "itna";[cite: 1, 2]
+      if ("aeiou".includes(removedChar)) suffix = "aten";[cite: 1, 2]
+      else if ("yw".includes(removedChar)) suffix = "vuhtvad";[cite: 1, 2]
+      return base + suffix;
+    }[cite: 1, 2]
+
+    function translateText(text, lang) {
+      if (!text || lang === 'en') return text;
+      let fn = transformSiennic;
+      if (lang === 'riverlundi') fn = transformRiverlundi;
+      if (lang === 'peschaten') fn = transformPeschaten;
+      return processWord(text, fn);
+    }
+
+    /* 2. State & Data Handling */
+    let currentLang = 'en';
+    let articlesData = [];
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadArticles();
+      renderPage();
+    });
+
+    async function loadArticles() {
+      try {
+        const response = await fetch('articles.json');
+        articlesData = await response.json();
+      } catch (err) {
+        console.warn("articles.json file not found or couldn't be parsed.", err);
+        articlesData = [];
+      }
+    }
+
+    function changeLanguage(lang) {
+      currentLang = lang;
+      renderPage();
+    }
+
+    function renderPage() {
+      // Translate Static UI Elements
+      document.getElementById('brandTitle').innerText = translateText("Siennic Wiki", currentLang);
+      document.getElementById('pageTitle').innerText = translateText("Siennic Wiki", currentLang);
+      document.getElementById('langLabel').innerText = translateText("Language:", currentLang);
+      document.getElementById('searchInput').placeholder = translateText("Search articles...", currentLang);
+
+      // Re-render Search Results
+      const query = document.getElementById('searchInput').value;
+      handleSearch(query);
+    }
+
+    function handleSearch(filter) {
+      const resultsContainer = document.getElementById('searchResults');
+      resultsContainer.innerHTML = '';
+      const cleanFilter = filter.toLowerCase().trim();
+
+      articlesData.forEach(article => {
+        const rawTitle = article.title || "";
+        const rawDesc = article.description || article.heading || "";
+        const url = article.url || "#";
+
+        if (rawTitle.toLowerCase().includes(cleanFilter) || rawDesc.toLowerCase().includes(cleanFilter)) {
+          const translatedTitle = translateText(rawTitle, currentLang);
+          const translatedDesc = translateText(rawDesc, currentLang);
+
+          const div = document.createElement('div');
+          div.className = 'result-item';
+          div.innerHTML = `
+            <h3><a href="${url}">${translatedTitle}</a></h3>
+            <div class="result-desc">${translatedDesc}</div>
+          `;
+          resultsContainer.appendChild(div);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
